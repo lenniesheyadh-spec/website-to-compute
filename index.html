@@ -3,38 +3,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GrowGood — Smart Game, Smart Brains</title>
+  <title>GrowGood | Coming Soon</title>
   <style>
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      font-family: "Poppins", sans-serif;
+      font-family: 'Poppins', sans-serif;
     }
 
     body {
       height: 100vh;
-      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      background: linear-gradient(135deg, #ffcc70, #ff9a8b, #88d3ce);
+      background-size: 300% 300%;
+      animation: gradientMove 8s ease infinite;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #fff;
       text-align: center;
     }
 
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    img {
+      width: 150px;
+      height: auto;
+      border-radius: 16px;
+      margin-bottom: 20px;
+    }
+
     h1 {
-      font-size: 3rem;
-      margin-bottom: 0.5rem;
+      font-size: 2.2em;
+      font-weight: 700;
     }
 
     p {
-      font-size: 1.2rem;
+      margin-top: 10px;
+      font-size: 1.1em;
       opacity: 0.9;
-      margin-bottom: 2rem;
     }
 
-    button {
-      padding: 12px 30px;
-      font-size: 1.1rem;
-      border: none;
+    .footer {
+      position: absolute;
+      bottom: 20px;
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <img src="https://raw.githubusercontent.com/lenniesheyadh-spec/website-to-compute/main/growgood-logo.png" alt="GrowGood Logo" />
+  <h1>🌿 GrowGood</h1>
+  <p>Smart game, smart brains</p>
+  <p>Coming Soon...</p>
+
+  <div class="footer">© 2025 GrowGood</div>
+</body>
+</html>
