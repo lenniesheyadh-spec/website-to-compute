@@ -1,0 +1,21 @@
+{
+  "name": "GrowGood",
+  "short_name": "GrowGood",
+  "start_url": "/website-to-compute/index.html",
+  "display": "standalone",
+  "background_color": "#ff9a8b",
+  "theme_color": "#ff6a88",
+  "description": "Smart game, smart brains — GrowGood Coming Soon!",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/0c1GsfR/growgood-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://i.ibb.co/0c1GsfR/growgood-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
