@@ -1,0 +1,497 @@
+<script>
+// Utilities for storage
+const STORAGE_KEY = 'habithero_v1';
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {
+      profile: null,
+      parentPin: null,
+      screenLimitMinutes: 15,
+      rewards: 0
+    };
+  } catch(e){
+    return { profile: null, parentPin: null, screenLimitMinutes: 15, rewards: 0 };
+  }
+}
+function saveState(s){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+let state = loadState();
+
+// UI elements
+const childName = document.getElementById('childName');
+const childAge = document.getElementById('childAge');
+const childGender = document.getElementById('childGender');
+const saveProfile = document.getElementById('saveProfile');
+const resetProgress = document.getElementById('resetProgress');
+const screenLimit = document.getElementById('screenLimit');
+const parentPin = document.getElementById('parentPin');
+const applyLock = document.getElementById('applyLock');
+const scenesMenu = document.getElementById('scenesMenu');
+const profileLabel = document.getElementById('profileLabel');
+const ageLabel = document.getElementById('ageLabel');
+const timeLeft = document.getElementById('timeLeft');
+const startSession = document.getElementById('startSession');
+const lockNowBtn = document.getElementById('lockNow');
+const playBtn = document.getElementById('playBtn');
+const completeBtn = document.getElementById('completeBtn');
+const sceneTitle = document.getElementById('sceneTitle');
+const sceneDesc = document.getElementById('sceneDesc');
+const rewardsRow = document.getElementById('rewardsRow');
+
+// Scenes configuration (age suitability)
+const SCENES = [
+  {id:'brush', title:'Brush Your Teeth', desc:'Learn correct brushing steps with a 3D tooth and toothbrush.', minAge:3, maxAge:12},
+  {id:'tidy', title:'Keep Things Tidy', desc:'See how cleaning up keeps your room nice and safe.', minAge:4, maxAge:15},
+  {id:'eat', title:'Eat Healthy', desc:'Interact with healthy vs junk food and learn smart choices.', minAge:5, maxAge:18}
+];
+
+// Session/Lock state
+let sessionTimer = null;
+let sessionRemaining = 0; // seconds
+let sessionActive = false;
+let locked = false;
+
+// Setup UI from state
+function refreshUI(){
+  if(state.profile){
+    profileLabel.textContent = state.profile.name || 'Child profile';
+    ageLabel.textContent = `Age ${state.profile.age} · ${state.profile.gender}`;
+    childName.value = state.profile.name || '';
+    childAge.value = state.profile.age || '';
+    childGender.value = state.profile.gender || 'any';
+  } else {
+    profileLabel.textContent = 'No profile';
+    ageLabel.textContent = '';
+  }
+  screenLimit.value = state.screenLimitMinutes || 15;
+  parentPin.value = state.parentPin || '';
+  populateScenes();
+  renderRewards();
+  updateTimeLeftDisplay();
+  setLockedUI(locked);
+}
+
+function populateScenes(){
+  scenesMenu.innerHTML = '';
+  const age = state.profile ? Number(state.profile.age) : null;
+  SCENES.forEach(scene => {
+    const btn = document.createElement('div');
+    btn.className = 'sceneBtn';
+    const lockedByAge = age !== null && (age < scene.minAge || age > scene.maxAge);
+    if(lockedByAge) btn.classList.add('locked');
+    btn.innerHTML = `
+      <div style="width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#fff,#f3fff4);display:flex;align-items:center;justify-content:center;font-weight:700">
+        ${scene.title[0]}
+      </div>
+      <div style="flex:1">
+        <div style="font-weight:700">${scene.title}</div>
+        <div class="small">${scene.desc}</div>
+      </div>`;
+    btn.addEventListener('click', ()=> {
+      if(locked) {
+        alert('App is locked. Parent PIN required to unlock.');
+        return;
+      }
+      if(lockedByAge) {
+        alert('This activity is not recommended for this age.');
+        return;
+      }
+      selectScene(scene.id);
+    });
+    scenesMenu.appendChild(btn);
+  });
+}
+
+function renderRewards(){
+  rewardsRow.innerHTML = '';
+  const n = state.rewards || 0;
+  for(let i = 0; i < n; i++){
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.innerHTML = '★';
+    rewardsRow.appendChild(s);
+  }
+}
+
+saveProfile.addEventListener('click', ()=>{
+  const name = childName.value.trim() || 'Child';
+  const age = Number(childAge.value) || 7;
+  const gender = childGender.value || 'any';
+  state.profile = { name, age, gender };
+  saveState(state);
+  refreshUI();
+  alert('Profile saved!');
+});
+
+resetProgress.addEventListener('click', ()=>{
+  if(confirm('Reset profile & rewards?')){
+    state = { profile: null, parentPin: null, screenLimitMinutes: 15, rewards: 0 };
+    saveState(state);
+    sessionActive = false;
+    locked = false;
+    clearSessionTimer();
+    refreshUI();
+  }
+});
+
+applyLock.addEventListener('click', ()=>{
+  const minutes = Number(screenLimit.value) || 15;
+  const pin = (parentPin.value || '').trim();
+  if(pin && !/^\d{4}$/.test(pin)) {
+    alert('PIN must be 4 digits for this prototype.');
+    return;
+  }
+  state.screenLimitMinutes = minutes;
+  state.parentPin = pin || null;
+  saveState(state);
+  refreshUI();
+  alert('Parent settings applied.');
+});
+
+startSession.addEventListener('click', ()=>{
+  if(!state.profile){
+    alert('Please save a child profile first.');
+    return;
+  }
+  if(sessionActive){
+    alert('Session already running.');
+    return;
+  }
+  sessionRemaining = (state.screenLimitMinutes || 15) * 60;
+  sessionActive = true;
+  locked = false;
+  updateTimeLeftDisplay();
+  sessionTimer = setInterval(()=>{
+    sessionRemaining--;
+    if(sessionRemaining <= 0){
+      clearInterval(sessionTimer);
+      sessionTimer = null;
+      sessionActive = false;
+      lockApp();
+    }
+    updateTimeLeftDisplay();
+  }, 1000);
+  setLockedUI(false);
+});
+
+lockNowBtn.addEventListener('click', ()=>{
+  lockApp();
+});
+
+function updateTimeLeftDisplay(){
+  if(locked) {
+    timeLeft.textContent = 'Locked';
+    return;
+  }
+  if(!sessionActive) {
+    timeLeft.textContent = '—';
+    return;
+  }
+  const m = Math.floor(sessionRemaining / 60);
+  const s = sessionRemaining % 60;
+  timeLeft.textContent = `${m}m ${s}s`;
+}
+
+function lockApp(){
+  locked = true;
+  sessionActive = false;
+  clearSessionTimer();
+  updateTimeLeftDisplay();
+  setLockedUI(true);
+  alert('Screen time ended. Parent PIN required to unlock.');
+}
+
+function askParentUnlock(){
+  const pin = prompt('Enter parent PIN to unlock: (4 digits)');
+  if(pin === null) return false;
+  if(state.parentPin && pin === state.parentPin){
+    const newSession = Math.max(60, (state.screenLimitMinutes || 15) * 60 / 4);
+    sessionRemaining = newSession;
+    sessionActive = true;
+    locked = false;
+    updateTimeLeftDisplay();
+    sessionTimer = setInterval(()=>{
+      sessionRemaining--;
+      if(sessionRemaining <= 0){
+        clearInterval(sessionTimer);
+        sessionTimer = null;
+        sessionActive = false;
+        lockApp();
+      }
+      updateTimeLeftDisplay();
+    }, 1000);
+    setLockedUI(false);
+    alert('Unlocked — short session started.');
+    return true;
+  } else {
+    alert('Wrong PIN.');
+    return false;
+  }
+}
+
+let currentSceneId = null;
+function selectScene(id){
+  currentSceneId = id;
+  const s = SCENES.find(x => x.id === id);
+  if(s){
+    sceneTitle.textContent = s.title;
+    sceneDesc.textContent = s.desc;
+    loadScene(id);
+  }
+}
+
+completeBtn.addEventListener('click', ()=>{
+  if(locked){
+    const ok = askParentUnlock();
+    if(!ok) return;
+  }
+  state.rewards = (state.rewards || 0) + 1;
+  saveState(state);
+  renderRewards();
+  alert('Great! A star has been awarded.');
+});
+
+playBtn.addEventListener('click', ()=>{
+  if(!currentSceneId){
+    alert('Choose a simulation first.');
+    return;
+  }
+  if(locked){
+    const ok = askParentUnlock();
+    if(!ok) return;
+  }
+  alert('Simulation playing — interact with the 3D view (click & drag).');
+});
+
+// Three.js scenes
+let renderer, scene, camera, controls, container;
+let activeObjects = [];
+
+function initThree(){
+  container = document.getElementById('threeContainer');
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.innerHTML = '';
+  container.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xe6fff1);
+  camera = new THREE.PerspectiveCamera(50, container.clientWidth/container.clientHeight, 0.1, 1000);
+  camera.position.set(0, 2.2, 5);
+
+  if (THREE.OrbitControls) {
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+  }
+
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+  hemi.position.set(0,20,0);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+  dir.position.set(3,10,5);
+  scene.add(dir);
+
+  const gMat = new THREE.MeshStandardMaterial({ color: 0xf1fff6 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(20,20), gMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -1.6;
+  scene.add(ground);
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    camera.aspect = container.clientWidth/container.clientHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  animate();
+}
+
+function clearActiveObjects(){
+  activeObjects.forEach(o => {
+    if (o.removeFromParent) {
+      o.removeFromParent();
+    } else if (o.geometry || o.material) {
+      scene.remove(o);
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    }
+  });
+  activeObjects = [];
+}
+
+function loadScene(id){
+  clearActiveObjects();
+  if(id === 'brush') loadBrushScene();
+  if(id === 'tidy') loadTidyScene();
+  if(id === 'eat') loadEatScene();
+}
+
+function loadBrushScene(){
+  const toothGeo = new THREE.SphereGeometry(0.9,32,32);
+  const toothMat = new THREE.MeshStandardMaterial({ color:0xffffff, metalness:0.1, roughness:0.4 });
+  const tooth = new THREE.Mesh(toothGeo, toothMat);
+  tooth.scale.set(1,1.2,0.8);
+  tooth.position.set(0,0.1,0);
+  scene.add(tooth);
+  activeObjects.push(tooth);
+
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.8,0.2),
+                  new THREE.MeshStandardMaterial({ color:0x2fa06a }));
+  handle.position.set(1.5,0.4,0.3);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.15,0.25),
+                new THREE.MeshStandardMaterial({ color:0xffffff }));
+  head.position.set(1.5,0.9,0.3);
+  const grp = new THREE.Group();
+  grp.add(handle); grp.add(head);
+  scene.add(grp);
+  activeObjects.push(grp);
+
+  const foamGeom = new THREE.BufferGeometry();
+  const foamCount = 50;
+  const foamPos = new Float32Array(foamCount*3);
+  for(let i=0;i<foamCount;i++){
+    foamPos[i*3+0] = (Math.random()-0.5)*1.2;
+    foamPos[i*3+1] = Math.random()*0.6+0.2;
+    foamPos[i*3+2] = (Math.random()-0.5)*0.6;
+  }
+  foamGeom.setAttribute('position', new THREE.BufferAttribute(foamPos,3));
+  const foamMat = new THREE.PointsMaterial({ size:0.06, color:0xf6fff6, transparent:true, opacity:0.9 });
+  const foam = new THREE.Points(foamGeom, foamMat);
+  foam.position.set(0.2,0,0);
+  scene.add(foam);
+  activeObjects.push(foam);
+
+  let t = 0;
+  const update = () => {
+    t += 0.02;
+    grp.position.x = 1.2 - Math.sin(t)*0.6;
+    grp.rotation.z = Math.sin(t*1.2)*0.5;
+    foam.rotation.y = t*0.4;
+  };
+  activeObjects.push({ update });
+}
+
+function loadTidyScene(){
+  const boxGeom = new THREE.BoxGeometry(1.2,0.6,1.0);
+  const box = new THREE.Mesh(boxGeom, new THREE.MeshStandardMaterial({ color:0xfff0e0 }));
+  box.position.set(0, -0.6+0.1, 0);
+  scene.add(box);
+  activeObjects.push(box);
+
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2),
+                   new THREE.MeshStandardMaterial({ color: 0x8b5a2b }));
+  handle.position.set(1.4,0.3,-0.2); handle.rotation.z = -0.7;
+  const br = new THREE.Mesh(new THREE.ConeGeometry(0.25,0.5,8),
+             new THREE.MeshStandardMaterial({ color:0xffcc66 }));
+  br.position.set(1.6,-0.2,-0.1); br.rotation.z = -1.0;
+  const broom = new THREE.Group();
+  broom.add(handle); broom.add(br);
+  scene.add(broom);
+  activeObjects.push(broom);
+
+  const trash = [];
+  for(let i=0;i<6;i++){
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.18,0.18),
+              new THREE.MeshStandardMaterial({ color:0xdaa520 }));
+    c.position.set((Math.random()-0.5)*1.8, -1.4+0.5, (Math.random()-0.5)*1.0);
+    scene.add(c);
+    activeObjects.push(c);
+    trash.push(c);
+  }
+
+  let t = 0;
+  const update = () => {
+    t += 0.02;
+    broom.position.x = 1.4 - Math.sin(t)*0.8;
+    broom.rotation.z = -0.7 + Math.cos(t)*0.2;
+    trash.forEach((tr,i)=>{
+      tr.position.x += (0 - tr.position.x) * 0.01;
+      tr.position.z += (0 - tr.position.z) * 0.01;
+      tr.rotation.y += 0.02;
+    });
+  };
+  activeObjects.push({ update });
+}
+
+function loadEatScene(){
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,0.15,32),
+               new THREE.MeshStandardMaterial({ color:0xffffff }));
+  plate.position.set(0,-0.8,0);
+  scene.add(plate);
+  activeObjects.push(plate);
+
+  const apple = new THREE.Mesh(new THREE.SphereGeometry(0.25,16,16),
+                new THREE.MeshStandardMaterial({ color:0xd83b3b }));
+  apple.position.set(-0.6,-0.6,0.2);
+  scene.add(apple);
+  activeObjects.push(apple);
+
+  const carrot = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.5,8),
+                new THREE.MeshStandardMaterial({ color:0xff8c42 }));
+  carrot.position.set(0.0,-0.6,0.3);
+  carrot.rotation.x = Math.PI;
+  scene.add(carrot);
+  activeObjects.push(carrot);
+
+  const chips = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.2,0.2),
+                new THREE.MeshStandardMaterial({ color:0xffe08a }));
+  chips.position.set(0.6,-0.6,-0.2);
+  scene.add(chips);
+  activeObjects.push(chips);
+
+  let t=0;
+  const update = () => {
+    t += 0.01;
+    apple.position.y = -0.6 + Math.sin(t)*0.02;
+    carrot.position.y = -0.6 + Math.cos(t*1.1)*0.02;
+    chips.rotation.y += 0.01;
+  };
+  activeObjects.push({ update });
+}
+
+// Animation loop
+function animate(){
+  requestAnimationFrame(animate);
+  activeObjects.forEach(o => {
+    if(typeof o.update === 'function'){
+      o.update();
+    }
+  });
+  if(renderer && scene && camera){
+    renderer.render(scene, camera);
+  }
+}
+
+function clearSessionTimer(){
+  if(sessionTimer){
+    clearInterval(sessionTimer);
+    sessionTimer = null;
+  }
+}
+
+// Initialize
+(function main(){
+  if(!window.THREE){
+    alert('Three.js not loaded');
+    return;
+  }
+  // Load OrbitControls
+  const script = document.createElement('script');
+  script.onload = () => {
+    initThree();
+    refreshUI();
+  };
+  script.src = 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/js/controls/OrbitControls.min.js';
+  document.head.appendChild(script);
+})();
+
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'u' && locked){
+    askParentUnlock();
+  }
+});
+
+</script>
