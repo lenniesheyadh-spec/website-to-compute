@@ -9,60 +9,41 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      font-family: 'Poppins', sans-serif;
+      font-family: "Poppins", sans-serif;
     }
 
     body {
       height: 100vh;
-      background: linear-gradient(135deg, #ffcc70, #ff9a8b, #88d3ce);
+      background: linear-gradient(135deg, #ff9a8b, #ff6a88, #ffcc70);
       background-size: 300% 300%;
-      animation: gradientMove 8s ease infinite;
+      animation: moveGradient 8s ease infinite;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: #fff;
       text-align: center;
+      color: white;
+      overflow: hidden;
     }
 
-    @keyframes gradientMove {
+    @keyframes moveGradient {
       0% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
 
     img {
-      width: 150px;
+      width: 130px;
       height: auto;
-      border-radius: 16px;
       margin-bottom: 20px;
+      animation: pulse 3s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: 0.9; }
     }
 
     h1 {
-      font-size: 2.2em;
+      font-size: 2.4em;
       font-weight: 700;
-    }
-
-    p {
-      margin-top: 10px;
-      font-size: 1.1em;
-      opacity: 0.9;
-    }
-
-    .footer {
-      position: absolute;
-      bottom: 20px;
-      font-size: 0.9em;
-      opacity: 0.8;
-    }
-  </style>
-</head>
-<body>
-  <img src="https://raw.githubusercontent.com/lenniesheyadh-spec/website-to-compute/main/growgood-logo.png" alt="GrowGood Logo" />
-  <h1>🌿 GrowGood</h1>
-  <p>Smart game, smart brains</p>
-  <p>Coming Soon...</p>
-
-  <div class="footer">© 2025 GrowGood</div>
-</body>
-</html>
