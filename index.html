@@ -13,14 +13,7 @@
       box-sizing: border-box;
       font-family: "Poppins", sans-serif;
     }
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker
-      .register("service-worker.js")
-      .then(() => console.log("Service Worker registered successfully!"))
-      .catch(err => console.error("Service Worker registration failed:", err));
-  }
-</script>
+
     body {
       height: 100vh;
       background: linear-gradient(135deg, #ff9a8b, #ff6a88, #ffcc70);
